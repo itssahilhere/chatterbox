@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chatterbox</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #ece5dd;
+      }
+
+      .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        max-width: 600px;
+        margin: 0 auto;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        overflow: hidden;
+        background-color: #fff;
+      }
+
+      .chat-header {
+        background-color: #075e54;
+        color: #fff;
+        padding: 10px;
+        text-align: center;
+        font-size: 1.5em;
+      }
+
+      .chat-notifications {
+        background-color: #25d366;
+        color: #fff;
+        padding: 10px;
+        text-align: center;
+        font-size: 1em;
+      }
+
+      .chat-messages {
+        flex: 1;
+        padding: 10px;
+        overflow-y: auto;
+        border-top: 1px solid #ccc;
+        border-bottom: 1px solid #ccc;
+        background-color: #dcf8c6;
+      }
+
+      .chat-message {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 15px;
+      }
+
+      .chat-message img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 10px;
+      }
+
+      .chat-message-content {
+        background-color: #fff;
+        padding: 10px;
+        border-radius: 5px;
+        max-width: 80%;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .chat-message-content .sender-name {
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #075e54;
+      }
+
+      .chat-message-content .message-time {
+        font-size: 0.8em;
+        color: #555;
+        margin-top: 5px;
+        text-align: right;
+      }
+
+      .chat-typing-indicator {
+        height: 20px;
+        padding: 5px;
+        color: #555;
+        font-style: italic;
+        background-color: #ece5dd;
+      }
+
+      .chat-footer {
+        display: flex;
+        padding: 10px;
+        background-color: #128c7e;
+        border-top: 1px solid #ccc;
+      }
+
+      .chat-footer input[type="text"] {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 1em;
+        background-color: #fff;
+      }
+
+      .chat-footer button {
+        margin-left: 10px;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        background-color: #25d366;
+        color: #fff;
+        font-size: 1em;
+        cursor: pointer;
+      }
+
+      .chat-footer button:hover {
+        background-color: #128c7e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chat-container">
+      <header class="chat-header">
+        <h1>Chatterbox</h1>
+      </header>
+      <div class="chat-notifications" id="chatNotifications">
+        Welcome to Chatterbox!
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <!-- Example messages -->
+      </div>
+
+      <div class="chat-typing-indicator" id="typingIndicator">
+        <!-- Typing indicator -->
+      </div>
+
+      <footer class="chat-footer">
+        <input
+          type="text"
+          id="messageInput"
+          placeholder="Type a message..."
+          autocomplete="off"
+        />
+        <button id="sendMessage">Send</button>
+      </footer>
+    </div>
+
+    <audio
+      id="notificationSound"
+      src="mixkit-message-pop-alert-2354.mp3"
+    ></audio>
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io.connect("http://localhost:3000");
+      let userName = "";
+      let timeout;
+      let typing = false;
+      // Prompt for the user's name
+      while (!userName) {
+        userName = prompt("Please enter your name:").trim();
+        if (!userName) {
+          alert("Please enter a valid name.");
+        }
+        const chatNotifications = document.getElementById("chatNotifications");
+        chatNotifications.textContent = `Welcome, ${userName}!`;
+        socket.emit("join", { username: userName });
+      }
+
+      const sendMessageButton = document.getElementById("sendMessage");
+      const notificationSound = document.getElementById("notificationSound");
+
+      function typingTimeout() {
+        socket.emit("typing", { username: userName, typing: false });
+        typing = false;
+      }
+
+      sendMessageButton.addEventListener("click", sendMessage);
+      const messageInputArea = document.getElementById("messageInput");
+      messageInputArea.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          sendMessage();
+        } else {
+          if (!typing) {
+            typing = true;
+            socket.emit("typing", { username: userName, typing: true });
+          }
+          clearTimeout(timeout);
+          timeout = setTimeout(typingTimeout, 1000);
+        }
+      });
+
+      function sendMessage() {
+        const messageInput = document.getElementById("messageInput");
+        const chatMessages = document.getElementById("chatMessages");
+
+        if (messageInput.value.trim() === "") return;
+
+        socket.emit("new_message", {
+          username: userName,
+          message: messageInput.value.trim(),
+        });
+
+        const newMessage = document.createElement("div");
+        newMessage.classList.add("chat-message");
+        newMessage.innerHTML = `
+          <img src="download.jpeg" alt="Profile Picture">
+          <div class="chat-message-content">
+            <div class="sender-name">${userName}</div>
+            <div class="message-text">${messageInput.value.trim()}</div>
+            <div class="message-time">${new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}</div>
+          </div>
+        `;
+        chatMessages.appendChild(newMessage);
+        messageInput.value = "";
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        notificationSound.play();
+      }
+
+      // rendering the joined user notification on the UI
+      socket.on("join_message", (message) => {
+        const chatNotifications = document.getElementById("chatNotifications");
+        const newMessage = document.createElement("div");
+        newMessage.classList.add("chat-notifications");
+        newMessage.innerHTML = `
+                  <div class="chat-notifications">${message.username} has joined the chat</div>`;
+        chatNotifications.appendChild(newMessage);
+      });
+      // Listen for previous messages from the server
+      socket.on("previousMessages", (messages) => {
+        const chatMessages = document.getElementById("chatMessages");
+        messages.forEach((message) => {
+          const newMessage = document.createElement("div");
+          newMessage.classList.add("chat-message");
+          newMessage.innerHTML = `
+                  <img src="download.jpeg" alt="Profile Picture">
+                  <div class="chat-message-content">
+                      <div class="sender-name">${message.username}</div>
+                      <div class="message-text">${message.text}</div>
+                      <div class="message-time">${new Date(
+                        message.timestamp
+                      ).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}</div>
+                  </div>
+              `;
+          chatMessages.appendChild(newMessage);
+        });
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      });
+
+      // Listen for new messages from the server
+      socket.on("new_message", (message) => {
+        // Display the new message in the message display area
+        // write your code here
+        const newMessage = document.createElement("div");
+        newMessage.classList.add("chat-message");
+        newMessage.innerHTML = `
+                      <img src="download.jpeg" alt="Profile Picture">
+                      <div class="chat-message-content">
+                          <div class="sender-name">${message.username}</div>
+                          <div class="message-text">${message.text}</div>
+                          <div class="message-time">${new Date().toLocaleTimeString(
+                            [],
+                            { hour: "2-digit", minute: "2-digit" }
+                          )}</div>
+                      </div>
+                  `;
+        document.getElementById("chatMessages").appendChild(newMessage);
+        // Scroll to the latest message
+        // Play the notification sound
+        notificationSound.play();
+        document.getElementById("chatMessages").scrollTop =
+          document.getElementById("chatMessages").scrollHeight;
+      });
+      // Listen for typing events from the server
+      socket.on("display", (data) => {
+        const typingIndicator = document.getElementById("typingIndicator");
+        typingIndicator.textContent = `${data.username} is typing...`;
+        setTimeout(() => {
+          if (typingIndicator.textContent === `${data.username} is typing...`) {
+            typingIndicator.textContent = "";
+          }
+        }, 3000);
+      });
+      // diconnection
+      window.addEventListener("beforeunload", () => {
+        socket.emit("user_disconnecting", { username: userName });
+      });
+      socket.on("user_disconnected", (data) => {
+        const chatNotifications = document.getElementById("chatNotifications");
+        const newNotification = document.createElement("div");
+        newNotification.classList.add("chat-notifications");
+        newNotification.textContent = `${data.username} has left the chat.`;
+
+        chatNotifications.appendChild(newNotification);
+
+        // Play the notification sound for disconnect
+        notificationSound.play();
+
+        // Alert on the UI
+        alert(`${data.username} has disconnected.`);
+      });
+
+      //error for notification
+      notificationSound.onerror = () => {
+        console.error("Notification sound failed to load.");
+      };
+    </script>
+  </body>
+</html>
